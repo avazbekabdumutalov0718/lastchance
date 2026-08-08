@@ -23,6 +23,8 @@ if (TOKEN && CHAT_ID) {
   console.log("⚠️  TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHAT_ID topilmadi — bot ishga tushmadi, faqat sayt ishlaydi.");
 }
 
+let awaitingTaskInput = false;
+
 function todayStr() {
   const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
   return fmt.format(new Date());
@@ -54,26 +56,31 @@ function buildKeyboard(date) {
       return [{ text: `✅ ${label} — bajarildi (${mins} daq)`, callback_data: 'noop' }];
     }
   });
+  rows.push([{ text: "➕ Yangi task qo'shish", callback_data: 'addtask' }]);
   return { inline_keyboard: rows };
+}
+
+async function sendTasksMessage(chatId, headerText) {
+  const date = todayStr();
+  db.ensureTodayTasks(date);
+  const sent = await bot.sendMessage(chatId, headerText, {
+    parse_mode: 'Markdown',
+    reply_markup: buildKeyboard(date),
+  });
+  db.getTasksByDate(date).forEach((t) => db.updateTask(t.id, { message_id: sent.message_id }));
+  return sent;
 }
 
 async function sendDailyTasks() {
   if (!bot) return;
   const date = todayStr();
-  db.ensureTodayTasks(date);
-
-  const text = `⏰ *Last Chance* — ${date}\n\nBugungi tasklar tayyor. Har birini boshlash uchun tugmani bosing:`;
-  const msg = await bot.sendMessage(CHAT_ID, text, {
-    parse_mode: 'Markdown',
-    reply_markup: buildKeyboard(date),
-  });
-  db.getTasksByDate(date).forEach((t) => db.updateTask(t.id, { message_id: msg.message_id }));
+  await sendTasksMessage(CHAT_ID, `⏰ *Last Chance* — ${date}\n\nBugungi tasklar tayyor. Har birini boshlash uchun tugmani bosing:`);
 }
 
-async function refreshKeyboard(date, messageId) {
+async function refreshKeyboard(date, messageId, chatId) {
   if (!bot) return;
   try {
-    await bot.editMessageReplyMarkup(buildKeyboard(date), { chat_id: CHAT_ID, message_id: messageId });
+    await bot.editMessageReplyMarkup(buildKeyboard(date), { chat_id: chatId || CHAT_ID, message_id: messageId });
   } catch (e) {
     // "message not modified" kabi xatolarni e'tiborsiz qoldiramiz
   }
@@ -110,7 +117,7 @@ async function sendEveningSummary() {
 async function checkVocabReminders() {
   if (!bot) return;
   const all = db.getAllVocabMaterials();
-  const buckets = {}; // section -> stage -> [materials]
+  const buckets = {};
 
   for (const n of REMINDER_STAGES) {
     const targetDate = daysAgoStr(n);
@@ -148,11 +155,30 @@ async function checkVocabReminders() {
   updates.forEach((u) => db.updateMaterialReminders(u.id, u.sent));
 }
 
-function registerCallbacks() {
+function registerHandlers() {
   if (!bot) return;
+
+  bot.onText(/\/start/, async (msg) => {
+    awaitingTaskInput = false;
+    await sendTasksMessage(
+      msg.chat.id,
+      `✅ *Last Chance* bot ishga tushdi!\n\nHar kuni:\n• 03:00 — kunlik tasklar\n• 08:00 — so'z takrorlash eslatmalari\n• 22:00 — kunlik natija\n\nBugungi tasklar:`
+    );
+  });
+
   bot.on('callback_query', async (query) => {
     const data = query.data;
     if (!data || data === 'noop') return bot.answerCallbackQuery(query.id);
+
+    if (data === 'addtask') {
+      awaitingTaskInput = true;
+      await bot.answerCallbackQuery(query.id);
+      return bot.sendMessage(
+        query.message.chat.id,
+        "✏️ Yangi task nomini yozib yuboring.\n\nAgar necha kun davom etishini belgilamoqchi bo'lsangiz, shu formatda yozing:\n`Task nomi | 30`\n\nFaqat nom yozsangiz — bugungi kun uchun bir martalik task bo'ladi.",
+        { parse_mode: 'Markdown' }
+      );
+    }
 
     const [action, taskIdStr] = data.split(':');
     const task = db.getTaskById(taskIdStr);
@@ -177,13 +203,40 @@ function registerCallbacks() {
     }
 
     const refreshed = db.getTaskById(task.id);
-    if (refreshed && refreshed.message_id) await refreshKeyboard(refreshed.date, refreshed.message_id);
+    if (refreshed && refreshed.message_id) {
+      await refreshKeyboard(refreshed.date, refreshed.message_id, query.message.chat.id);
+    }
+  });
+
+  bot.on('message', async (msg) => {
+    if (!msg.text || msg.text.startsWith('/')) return;
+    if (!awaitingTaskInput) return;
+    awaitingTaskInput = false;
+
+    const parts = msg.text.split('|').map((s) => s.trim());
+    const title = parts[0];
+    const days = parts[1] ? Number(parts[1]) : null;
+
+    if (!title) {
+      return bot.sendMessage(msg.chat.id, "Task nomi bo'sh bo'lishi mumkin emas. Qaytadan urinib ko'ring.");
+    }
+
+    const custom = db.addCustomTask({ title, duration_days: days || null, start_date: todayStr() });
+    db.ensureCustomTaskInstance(custom.id, todayStr());
+
+    await bot.sendMessage(
+      msg.chat.id,
+      `✅ Task qo'shildi: *${title}*${days ? ` (${days} kun davom etadi)` : ' (bugungi kun uchun bir martalik)'}`,
+      { parse_mode: 'Markdown' }
+    );
+
+    await sendTasksMessage(msg.chat.id, "Yangilangan tasklar ro'yxati:");
   });
 }
 
 function scheduleJobs() {
   if (!bot) { console.log('Bot ishlamayapti, cron jadval o\'rnatilmadi.'); return; }
-  registerCallbacks();
+  registerHandlers();
   cron.schedule('0 3 * * *', () => { sendDailyTasks().catch(console.error); }, { timezone: TZ });
   cron.schedule('0 22 * * *', () => { sendEveningSummary().catch(console.error); }, { timezone: TZ });
   cron.schedule('0 8 * * *', () => { checkVocabReminders().catch(console.error); }, { timezone: TZ });
