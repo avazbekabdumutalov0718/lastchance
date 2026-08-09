@@ -12,26 +12,19 @@ const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const SECTION_LABELS = {
-  reading: '📖 Reading', listening: '🎧 Listening', writing: '✍️ Writing',
-  speaking: '🗣 Speaking', vocabulary: '📚 Vocabulary', grammar: '📐 Grammar',
-};
-const REMINDER_STAGES = [3, 7, 14, 23, 30];
-const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
-const snoozeTimers = {};
-
-const SECTION_KINDS = {
-  reading: [['content', 'Material'], ['keyword', 'Keyword'], ['vocabulary', 'Vocabulary']],
-  listening: [['content', 'Material'], ['keyword', 'Keyword'], ['vocabulary', 'Vocabulary']],
-  writing: [['content', 'Material'], ['model_answer', 'Model Answer'], ['vocabulary', 'Vocabulary']],
-  speaking: [['content', 'Material'], ['model_answer', 'Model Answer'], ['vocabulary', 'Vocabulary']],
-  grammar: [['content', 'Material']],
+  reading: '📖 Reading',
+  listening: '🎧 Listening',
+  writing: '✍️ Writing',
+  speaking: '🗣 Speaking',
+  vocabulary: '📚 Vocabulary',
+  grammar: '📐 Grammar',
 };
 
 let bot = null;
 if (TOKEN && CHAT_ID) {
   bot = new TelegramBot(TOKEN, { polling: true });
 } else {
-  console.warn("TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHAT_ID sozlanmagan. Bot va bildirishnomalar ishlamaydi.");
+  console.warn("TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHAT_ID sozlanmagan. Bot ishlamaydi.");
 }
 
 function todayStr() {
@@ -92,13 +85,26 @@ async function checkVocabReminders() {
     text += `Sana: ${item.date}\n`;
     if (item.title) text += `Mavzu: ${item.title}\n`;
     
-    await bot.sendMessage(CHAT_ID, text, { parse_mode: 'Markdown' });
-    
+    // Telegram caption chegarasi max 1024 belgi
+    const safeCaption = text.length > 1020 ? text.slice(0, 1017) + '...' : text;
+
     if (item.file_path && fs.existsSync(item.file_path)) {
       const ext = path.extname(item.file_path).toLowerCase();
       if (ext === '.pdf') {
-        await bot.sendDocument(CHAT_ID, item.file_path, { caption: `📌 ${item.title || 'Lug\'at fayli'}` });
+        await bot.sendDocument(CHAT_ID, item.file_path, { 
+          caption: safeCaption, 
+          parse_mode: 'Markdown' 
+        });
+      } else if (['.jpg', '.jpeg', '.png'].includes(ext)) {
+        await bot.sendPhoto(CHAT_ID, item.file_path, { 
+          caption: safeCaption, 
+          parse_mode: 'Markdown' 
+        });
+      } else {
+        await bot.sendMessage(CHAT_ID, text, { parse_mode: 'Markdown' });
       }
+    } else {
+      await bot.sendMessage(CHAT_ID, text, { parse_mode: 'Markdown' });
     }
   }
 }
@@ -145,42 +151,63 @@ async function sendWeeklyReport() {
   await bot.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
 }
 
-async function refreshRunningTaskTimers() {
-  // Timerlarni yangilab turish mexanizmi
-}
+async function refreshRunningTaskTimers() {}
 
-async function checkDueSrsWords() {
-  if (!bot || !CHAT_ID) return;
-  const allWords = getValidWords(db.getWordsBySection('grammar'));
-  if (allWords.length === 0) return;
-}
+async function checkDueSrsWords() {}
 
 // ---------------------------------------------------------
-// GRAMMAR QUIZ (Savol: O'zbekcha ma'nosi -> Variantlar: 4 ta Inglizcha so'z)
+// UNIVERAZAL VOCABULARY QUIZ (Istalgan bo'lim bo'yicha)
 // ---------------------------------------------------------
-async function startGrammarQuiz(chatId) {
-  const grammarWords = getValidWords(db.getWordsBySection('grammar'));
+async function startVocabularyQuiz(chatId, section = 'all') {
+  let rawWords = [];
   
-  if (grammarWords.length < 4) {
+  if (section === 'all') {
+    const sections = ['reading', 'listening', 'writing', 'speaking', 'grammar', 'vocabulary'];
+    for (const sec of sections) {
+      const secWords = db.getWordsBySection ? db.getWordsBySection(sec) : [];
+      rawWords = rawWords.concat(secWords);
+    }
+  } else {
+    rawWords = db.getWordsBySection ? db.getWordsBySection(section) : [];
+  }
+
+  const validWords = getValidWords(rawWords);
+
+  // Unikal so'zlarni ajratamiz (takrorlanishning oldini olish uchun)
+  const uniqueWordsMap = new Map();
+  for (const w of validWords) {
+    if (w.word && w.meaning && !uniqueWordsMap.has(w.word.toLowerCase())) {
+      uniqueWordsMap.set(w.word.toLowerCase(), w);
+    }
+  }
+  const uniqueWords = Array.from(uniqueWordsMap.values());
+
+  if (uniqueWords.length < 4) {
+    const secName = SECTION_LABELS[section] || 'Ushbu bo\'lim';
     await bot.sendMessage(
       chatId, 
-      "⚠️ Quiz tuzish uchun kamida 4 ta so'z bo'lishi kerak. Iltimos, ko'proq so'z/fayl yuklang."
+      `⚠️ ${secName}da quiz tuzish uchun kamida 4 ta har xil so'z bo'lishi kerak. Iltimos, ko'proq fayl yuklang.`
     );
     return;
   }
 
-  const target = grammarWords[Math.floor(Math.random() * grammarWords.length)];
-  const otherWords = grammarWords.filter(w => w.word !== target.word);
+  // 1 ta to'g'ri so'zni tanlaymiz
+  const target = uniqueWords[Math.floor(Math.random() * uniqueWords.length)];
+  
+  // Qolgan so'zlardan 3 ta har xil (noto'g'ri) variant tanlaymiz
+  const otherWords = uniqueWords.filter(w => w.word.toLowerCase() !== target.word.toLowerCase());
   const shuffledOthers = shuffle(otherWords).slice(0, 3);
 
+  // 4 ta unikal variantni aralashtiramiz
   const options = shuffle([target, ...shuffledOthers]);
-  const correctIdx = options.findIndex(o => o.word === target.word);
+  const correctIdx = options.findIndex(o => o.word.toLowerCase() === target.word.toLowerCase());
 
   const pollOptions = options.map(o => o.word);
+  const secTitle = SECTION_LABELS[section] ? `[${SECTION_LABELS[section]}]` : '[Barcha Bo\'limlar]';
 
   await bot.sendPoll(
     chatId,
-    `📝 *Ma'nosi:* "${target.meaning}"\n\nUshbu ma'noga mos keladigan inglizcha so'zni tanlang:`,
+    `📝 ${secTitle}\nMa'nosi: "${target.meaning}"\n\nUshbu ma'noga mos keladigan inglizcha so'zni tanlang:`,
     pollOptions,
     {
       is_anonymous: false,
@@ -203,7 +230,7 @@ function registerHandlers() {
       `Assalomu alaykum! *Last Chance Discipline Tracker* botiga xush kelibsiz.\n\n` +
       `Mavjud buyruqlar:\n` +
       `/today - Bugungi reja\n` +
-      `/grammatika - Grammatikadan interaktiv quiz\n` +
+      `/quiz - Bo'limlar bo'yicha test/quiz yechish\n` +
       `/soz <so'z> - Lug'atdan qidirish`,
       { parse_mode: 'Markdown' }
     );
@@ -214,14 +241,56 @@ function registerHandlers() {
   });
 
   bot.onText(/\/grammatika/, (msg) => {
-    startGrammarQuiz(msg.chat.id);
+    startVocabularyQuiz(msg.chat.id, 'grammar');
+  });
+
+  // /quiz buyrug'i yuborilganda inline tugmalar chiqadi
+  bot.onText(/\/quiz/, (msg) => {
+    const opts = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '📖 Reading', callback_data: 'quiz_reading' },
+            { text: '🎧 Listening', callback_data: 'quiz_listening' }
+          ],
+          [
+            { text: '✍️ Writing', callback_data: 'quiz_writing' },
+            { text: '🗣 Speaking', callback_data: 'quiz_speaking' }
+          ],
+          [
+            { text: '📐 Grammar', callback_data: 'quiz_grammar' },
+            { text: '📚 Hamma bo\'limlar', callback_data: 'quiz_all' }
+          ]
+        ]
+      }
+    };
+    bot.sendMessage(msg.chat.id, "🎯 **Qaysi bo'lim bo'yicha Quiz yechmoqchisiz?**\nKerakli bo'limni tanlang:", { parse_mode: 'Markdown', ...opts });
+  });
+
+  // Inline tugmalar bosilganda ishlaydi
+  bot.on('callback_query', async (query) => {
+    const data = query.data;
+    if (data && data.startsWith('quiz_')) {
+      const section = data.replace('quiz_', '');
+      await bot.answerCallbackQuery(query.id).catch(() => {});
+      await startVocabularyQuiz(query.message.chat.id, section);
+    }
   });
 
   bot.onText(/\/soz (.+)/, (msg, match) => {
     const query = match[1].trim().toLowerCase();
-    const allWords = getValidWords(db.getWordsBySection ? db.getWordsBySection('grammar') : []);
+    const rawAll = db.getAllVocabMaterials ? db.getAllVocabMaterials() : [];
     
-    const matched = allWords.filter(w => 
+    // Barcha bo'limlardan toza so'zlarni izlash
+    let allWords = [];
+    ['reading', 'listening', 'writing', 'speaking', 'grammar', 'vocabulary'].forEach(sec => {
+      if (db.getWordsBySection) {
+        allWords = allWords.concat(db.getWordsBySection(sec));
+      }
+    });
+
+    const validWords = getValidWords(allWords);
+    const matched = validWords.filter(w => 
       w.word.toLowerCase().includes(query) || 
       w.meaning.toLowerCase().includes(query)
     );
