@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Last Chance — Discipline Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">LC</span>
+      <div class="brand-text">
+        <h1>Last Chance</h1>
+        <p>— bugungi kun uchun oxirgi imkoniyat</p>
+      </div>
+    </div>
+    <div class="date-pill" id="today-pill">--</div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="progress">Progress</button>
+    <button class="tab" data-tab="reading">Reading</button>
+    <button class="tab" data-tab="listening">Listening</button>
+    <button class="tab" data-tab="writing">Writing</button>
+    <button class="tab" data-tab="speaking">Speaking</button>
+    <button class="tab" data-tab="vocabulary">Vocabulary</button>
+    <button class="tab" data-tab="grammar">Grammar</button>
+    <button class="tab" data-tab="lugat">📖 Lug'at</button>
+  </nav>
+
+  <main id="panels">
+
+    <!-- PROGRESS -->
+    <section class="panel active" id="panel-progress">
+      <div class="panel-head">
+        <h2>Progress</h2>
+        <p class="sub">Bugungi tasklar. Boshlash — vaqt hisoblanadi. Finish — yakunlanadi.</p>
+      </div>
+      <div class="stats-bar" id="stats-bar"></div>
+
+      <div class="block goal-block">
+        <div class="goal-head">
+          <h3 style="margin:0; border:none; padding:0;">🎯 Kunlik maqsad</h3>
+          <button class="btn btn-ghost" id="edit-goal-btn">O'zgartirish</button>
+        </div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" id="goal-bar-fill"></div></div>
+        <div class="goal-label" id="goal-label">—</div>
+      </div>
+
+      <button class="btn btn-outline" id="add-task-btn">+ Yangi task qo'shish</button>
+      <div class="task-grid" id="task-grid"></div>
+
+      <div class="block">
+        <h3>🔥 Faollik xaritasi</h3>
+        <div id="heatmap" class="heatmap"></div>
+      </div>
+
+      <div class="block charts-block">
+        <div class="chart-card">
+          <h3>Bo'limlar bo'yicha vaqt</h3>
+          <canvas id="chart-sections"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>So'nggi 7 kun</h3>
+          <canvas id="chart-week"></canvas>
+        </div>
+      </div>
+
+      <div class="block">
+        <h3>Tarix</h3>
+        <div id="task-history" class="history-list"></div>
+      </div>
+    </section>
+
+    <!-- READING -->
+    <section class="panel" id="panel-reading" data-section="reading">
+      <div class="panel-head">
+        <h2>Reading</h2>
+        <p class="sub">Kunlik material, keyword, so'zlar (PDF/HTML) va natija.</p>
+      </div>
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-kind="content">Material</button>
+        <button class="sub-tab" data-kind="keyword">Keyword</button>
+        <button class="sub-tab" data-kind="vocabulary">Vocabulary</button>
+        <button class="sub-tab" data-kind="result">Kunlik natija</button>
+      </div>
+      <div class="sub-panel active" data-kind-panel="content" data-section-panel="reading"></div>
+      <div class="sub-panel" data-kind-panel="keyword" data-section-panel="reading"></div>
+      <div class="sub-panel" data-kind-panel="vocabulary" data-section-panel="reading"></div>
+      <div class="sub-panel" data-kind-panel="result" data-section-panel="reading"></div>
+    </section>
+
+    <!-- LISTENING -->
+    <section class="panel" id="panel-listening" data-section="listening">
+      <div class="panel-head">
+        <h2>Listening</h2>
+        <p class="sub">Kunlik material, keyword, so'zlar (PDF/HTML) va natija.</p>
+      </div>
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-kind="content">Material</button>
+        <button class="sub-tab" data-kind="keyword">Keyword</button>
+        <button class="sub-tab" data-kind="vocabulary">Vocabulary</button>
+        <button class="sub-tab" data-kind="result">Kunlik natija</button>
+      </div>
+      <div class="sub-panel active" data-kind-panel="content" data-section-panel="listening"></div>
+      <div class="sub-panel" data-kind-panel="keyword" data-section-panel="listening"></div>
+      <div class="sub-panel" data-kind-panel="vocabulary" data-section-panel="listening"></div>
+      <div class="sub-panel" data-kind-panel="result" data-section-panel="listening"></div>
+    </section>
+
+    <!-- WRITING -->
+    <section class="panel" id="panel-writing" data-section="writing">
+      <div class="panel-head">
+        <h2>Writing</h2>
+        <p class="sub">Kunlik topshiriq, model answer, so'zlar (PDF/HTML) va natija.</p>
+      </div>
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-kind="content">Material</button>
+        <button class="sub-tab" data-kind="model_answer">Model Answer</button>
+        <button class="sub-tab" data-kind="vocabulary">Vocabulary</button>
+        <button class="sub-tab" data-kind="result">Kunlik natija</button>
+      </div>
+      <div class="sub-panel active" data-kind-panel="content" data-section-panel="writing"></div>
+      <div class="sub-panel" data-kind-panel="model_answer" data-section-panel="writing"></div>
+      <div class="sub-panel" data-kind-panel="vocabulary" data-section-panel="writing"></div>
+      <div class="sub-panel" data-kind-panel="result" data-section-panel="writing"></div>
+    </section>
+
+    <!-- SPEAKING -->
+    <section class="panel" id="panel-speaking" data-section="speaking">
+      <div class="panel-head">
+        <h2>Speaking</h2>
+        <p class="sub">Kunlik topshiriq, model answer, so'zlar (PDF/HTML) va natija.</p>
+      </div>
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-kind="content">Material</button>
+        <button class="sub-tab" data-kind="model_answer">Model Answer</button>
+        <button class="sub-tab" data-kind="vocabulary">Vocabulary</button>
+        <button class="sub-tab" data-kind="result">Kunlik natija</button>
+      </div>
+      <div class="sub-panel active" data-kind-panel="content" data-section-panel="speaking"></div>
+      <div class="sub-panel" data-kind-panel="model_answer" data-section-panel="speaking"></div>
+      <div class="sub-panel" data-kind-panel="vocabulary" data-section-panel="speaking"></div>
+      <div class="sub-panel" data-kind-panel="result" data-section-panel="speaking"></div>
+    </section>
+
+    <!-- VOCABULARY (4 bo'lim, hammasi fayl yuklash) -->
+    <section class="panel" id="panel-vocabulary">
+      <div class="panel-head">
+        <h2>Vocabulary</h2>
+        <p class="sub">4 ta alohida bo'lim, PDF/HTML fayl. Har fayl 3/7/14/23/30-kunda avtomatik eslatiladi.</p>
+      </div>
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-vocab-sec="reading">Reading</button>
+        <button class="sub-tab" data-vocab-sec="listening">Listening</button>
+        <button class="sub-tab" data-vocab-sec="writing">Writing</button>
+        <button class="sub-tab" data-vocab-sec="speaking">Speaking</button>
+      </div>
+      <div class="sub-panel active" data-vocab-panel="reading"></div>
+      <div class="sub-panel" data-vocab-panel="listening"></div>
+      <div class="sub-panel" data-vocab-panel="writing"></div>
+      <div class="sub-panel" data-vocab-panel="speaking"></div>
+    </section>
+
+    <!-- GRAMMAR -->
+    <section class="panel" id="panel-grammar" data-section="grammar">
+      <div class="panel-head">
+        <h2>Grammar</h2>
+        <p class="sub">Har kunlik topic (PDF yoki HTML). Botda <code>/grammatika</code> buyrug'i bilan shu materiallardan quiz o'tkazing.</p>
+      </div>
+      <div class="sub-panel active" data-kind-panel="content" data-section-panel="grammar"></div>
+    </section>
+
+    <!-- LUG'AT (so'zlar banki + SRS holati) -->
+    <section class="panel" id="panel-lugat">
+      <div class="panel-head">
+        <h2>Lug'at</h2>
+        <p class="sub">Barcha fayllardan yig'ilgan so'zlar. Har biri o'z takrorlash holatiga ega (SRS).</p>
+      </div>
+      <input type="text" class="input" id="word-search" placeholder="Qidirish (so'z yoki ma'no)...">
+      <div class="stats-bar" style="margin-top:10px;">
+        <div class="stat-chip" id="word-total-chip">📚 <b>0</b> so'z</div>
+        <div class="stat-chip" id="word-difficult-chip">⚠️ <b>0</b> qiyin so'z</div>
+      </div>
+      <div id="word-list" class="word-list"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Kunlik maqsad o'zgartirish modali -->
+<div class="modal-overlay" id="goal-modal-overlay">
+  <div class="modal">
+    <h3>Kunlik maqsad</h3>
+    <input type="number" class="input" id="goal-input" placeholder="Daqiqa (masalan 120)" min="1">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancel-goal-btn">Bekor qilish</button>
+      <button class="btn btn-primary" id="confirm-goal-btn">Saqlash</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom task qo'shish modali -->
+<div class="modal-overlay" id="task-modal-overlay">
+  <div class="modal">
+    <h3>Yangi task qo'shish</h3>
+    <input type="text" class="input" id="new-task-title" placeholder="Task nomi (masalan: 30 kunlik shaking)">
+    <input type="number" class="input" id="new-task-days" placeholder="Necha kun davom etsin? (ixtiyoriy, masalan 30)" min="1">
+    <p class="modal-hint">Bo'sh qoldirsangiz — faqat bugungi kun uchun bir martalik task bo'ladi.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancel-task-btn">Bekor qilish</button>
+      <button class="btn btn-primary" id="confirm-task-btn">Qo'shish</button>
+    </div>
+  </div>
+</div>
+
+<template id="tpl-material-block">
+  <div class="upload-row">
+    <input type="text" class="input title-input" placeholder="Sarlavha (masalan: Cambridge 17 Test 3)">
+    <input type="date" class="input date-input">
+    <input type="file" class="file-input" accept=".pdf,.html,.htm,.mp3,.m4a,.ogg,.wav,.jpg,.jpeg,.png,.webp">
+    <button class="btn btn-primary upload-btn">Yuklash</button>
+  </div>
+  <div class="material-list"></div>
+</template>
+
+<template id="tpl-result-block">
+  <textarea class="input result-input" rows="4" placeholder="Bugungi natija haqida qisqa yozing..."></textarea>
+  <div class="score-row">
+    <label class="score-label">Ball (ixtiyoriy — Writing/Speaking uchun IELTS band 1-9):</label>
+    <input type="number" class="input score-input" min="1" max="9" step="0.5" placeholder="masalan 6.5">
+  </div>
+  <div class="result-image-row">
+    <input type="file" class="file-input result-image-input" accept=".jpg,.jpeg,.png,.webp">
+    <span class="modal-hint">Natija skrinshoti yoki rasmini ilova qilishingiz mumkin (ixtiyoriy)</span>
+  </div>
+  <div class="result-image-preview" style="display:none;"></div>
+  <button class="btn btn-primary save-result-btn">Saqlash</button>
+  <div class="saved-note" style="display:none;">Saqlandi ✓</div>
+  <div class="score-chart-wrap"><canvas class="score-chart"></canvas></div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
