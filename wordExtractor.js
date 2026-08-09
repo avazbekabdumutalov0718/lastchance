@@ -18,7 +18,7 @@ function stripHtml(html) {
     .replace(/&#39;/gi, "'");
 }
 
-// Bir qatordan "so'z <ajratuvchi> ma'no" juftligini topish
+// Bir qatordan "so'z - ma'no" ni ajratish
 function parseLine(line) {
   const clean = line.trim();
   if (!clean || clean.length > 160) return null;
@@ -27,10 +27,9 @@ function parseLine(line) {
   for (const d of delimiters) {
     const idx = clean.indexOf(d);
     if (idx > 0 && idx < clean.length - d.length) {
-      let word = clean.slice(0, idx).trim().replace(/^[\d.)\-\s]+/, '');
+      let word = clean.slice(0, idx).trim().replace(/^[\d.)\-\s•]+/, '');
       let meaning = clean.slice(idx + d.length).trim();
       
-      // Bo'sh hamda 'undefined' qiymatlarni rad etamiz
       if (word && meaning && word !== 'undefined' && meaning !== 'undefined') {
         return { word, meaning };
       }
@@ -43,47 +42,38 @@ function extractPairsFromText(text) {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const pairs = [];
 
+  // 1-USUL: Bitta qatordagi so'z va ma'nolar (masalan: "Base - Asoslamoq")
   for (const line of lines) {
     const p = parseLine(line);
     if (p) pairs.push(p);
   }
 
-  // Agar oddiy qatorlarda ajralmasa, sarlavha-ma'no strukturasi bo'yicha qaraymiz
+  // 2-USUL: Ko'p qatorli format (Siz yuklagan PDF fayldagidek formatlar uchun)
   if (pairs.length === 0) {
-    const headingRe = /^([A-Za-z0-9'’\-\s]{2,60})\s*$/;
-    const meaningRe = /^(?:definition|meaning|tarjima|ma'no|ma'nosi|definition:)\s*:?\s*(.+)$/i;
-    const fieldLabelRe = /^(definition|meaning|tarjima|ma'no|ma'nosi|example|notes?)$/i;
-
     let currentWord = null;
-    let currentMeaning = null;
 
-    const flush = () => {
-      if (
-        currentWord && 
-        currentMeaning && 
-        currentWord !== 'undefined' && 
-        currentMeaning !== 'undefined'
-      ) {
-        pairs.push({ word: currentWord, meaning: currentMeaning });
-      }
-      currentWord = null;
-      currentMeaning = null;
-    };
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
 
-    for (const line of lines) {
-      if (!line) continue;
-      const headingMatch = line.match(headingRe);
-      if (headingMatch && !fieldLabelRe.test(headingMatch[1].trim())) {
-        flush();
-        currentWord = headingMatch[1].trim();
-        continue;
+      // So'z sarlavhasini aniqlash (Masalan: "1. Base", "2. Placement", "Base")
+      const wordMatch = line.match(/^(?:\d+[\.\)]\s*)?([A-Za-z0-9'’\-\s]{2,50})$/);
+      if (wordMatch) {
+        const potentialWord = wordMatch[1].trim();
+        if (!/^(Ma'nosi|Aytilishi|Sinonimlar|Ibora|Misol|PAGE)/i.test(potentialWord)) {
+          currentWord = potentialWord;
+        }
       }
-      const meaningMatch = line.match(meaningRe);
-      if (meaningMatch && currentWord && !currentMeaning) {
-        currentMeaning = meaningMatch[1].trim();
+
+      // Ma'nosini aniqlash (Masalan: "Ma'nosi: Asoslamoq, tayanmoq")
+      const meaningMatch = line.match(/^(?:•\s*)?Ma'nosi\s*:\s*(.+)$/i);
+      if (meaningMatch && currentWord) {
+        const meaning = meaningMatch[1].trim();
+        if (currentWord && meaning && currentWord !== 'undefined' && meaning !== 'undefined') {
+          pairs.push({ word: currentWord, meaning: meaning });
+        }
+        currentWord = null;
       }
     }
-    flush();
   }
 
   return dedupe(pairs);
@@ -102,7 +92,6 @@ function dedupe(pairs) {
   });
 }
 
-// filePath, fileType ('pdf' | 'html' | 'image') -> Promise<[{word, meaning}]>
 async function extractWordPairs(filePath, fileType) {
   try {
     if (fileType === 'html') {
