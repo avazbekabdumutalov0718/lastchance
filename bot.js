@@ -97,7 +97,7 @@ async function checkVocabReminders() {
     if (item.file_path && fs.existsSync(item.file_path)) {
       const ext = path.extname(item.file_path).toLowerCase();
       if (ext === '.pdf') {
-        await bot.sendDocument(CHAT_ID, item.file_path, { caption: `📌 ${item.title || 'Lug'at fayli'}` });
+        await bot.sendDocument(CHAT_ID, item.file_path, { caption: `📌 ${item.title || 'Lug\'at fayli'}` });
       }
     }
   }
@@ -146,7 +146,7 @@ async function sendWeeklyReport() {
 }
 
 async function refreshRunningTaskTimers() {
-  // Timerlarni yangilab turish uchun ichki mexanizm
+  // Timerlarni yangilab turish mexanizmi
 }
 
 async function checkDueSrsWords() {
@@ -156,12 +156,16 @@ async function checkDueSrsWords() {
 }
 
 // ---------------------------------------------------------
-// GRAMMAR QUIZ
+// GRAMMAR QUIZ (Savol: O'zbekcha ma'nosi -> Variantlar: 4 ta Inglizcha so'z)
 // ---------------------------------------------------------
 async function startGrammarQuiz(chatId) {
   const grammarWords = getValidWords(db.getWordsBySection('grammar'));
-  if (grammarWords.length === 0) {
-    await bot.sendMessage(chatId, "⚠️ Grammar bo'limida hali test uchun yetarli so'zlar mavjud emas.");
+  
+  if (grammarWords.length < 4) {
+    await bot.sendMessage(
+      chatId, 
+      "⚠️ Quiz tuzish uchun kamida 4 ta so'z bo'lishi kerak. Iltimos, ko'proq so'z/fayl yuklang."
+    );
     return;
   }
 
@@ -172,17 +176,17 @@ async function startGrammarQuiz(chatId) {
   const options = shuffle([target, ...shuffledOthers]);
   const correctIdx = options.findIndex(o => o.word === target.word);
 
-  const pollOptions = options.map(o => o.meaning);
+  const pollOptions = options.map(o => o.word);
 
   await bot.sendPoll(
     chatId,
-    `📐 *Grammar Quiz*\n\nSo'z: *${target.word}*\nTo'g'ri ma'nosini tanlang:`,
+    `📝 *Ma'nosi:* "${target.meaning}"\n\nUshbu ma'noga mos keladigan inglizcha so'zni tanlang:`,
     pollOptions,
     {
       is_anonymous: false,
       type: 'quiz',
       correct_option_id: correctIdx,
-      explanation: `To'g'ri javob: ${target.meaning}`,
+      explanation: `To'g'ri javob: ${target.word} — ${target.meaning}`,
       parse_mode: 'Markdown'
     }
   );
@@ -215,8 +219,6 @@ function registerHandlers() {
 
   bot.onText(/\/soz (.+)/, (msg, match) => {
     const query = match[1].trim().toLowerCase();
-    const rawAll = db.getAllVocabMaterials ? db.getAllVocabMaterials() : [];
-    // Hamma saqlangan so'zlardan toza so'zlarni olish
     const allWords = getValidWords(db.getWordsBySection ? db.getWordsBySection('grammar') : []);
     
     const matched = allWords.filter(w => 
