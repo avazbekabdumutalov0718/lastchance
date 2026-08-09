@@ -42,20 +42,19 @@ function extractPairsFromText(text) {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const pairs = [];
 
-  // 1-USUL: Bitta qatordagi so'z va ma'nolar (masalan: "Base - Asoslamoq")
+  // 1-USUL: Bitta qatordagi so'z va ma'nolar
   for (const line of lines) {
     const p = parseLine(line);
     if (p) pairs.push(p);
   }
 
-  // 2-USUL: Ko'p qatorli format (Siz yuklagan PDF fayldagidek formatlar uchun)
+  // 2-USUL: Ko'p qatorli formatlar (PDF dagi ko'rinishlar uchun)
   if (pairs.length === 0) {
     let currentWord = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // So'z sarlavhasini aniqlash (Masalan: "1. Base", "2. Placement", "Base")
       const wordMatch = line.match(/^(?:\d+[\.\)]\s*)?([A-Za-z0-9'’\-\s]{2,50})$/);
       if (wordMatch) {
         const potentialWord = wordMatch[1].trim();
@@ -64,7 +63,6 @@ function extractPairsFromText(text) {
         }
       }
 
-      // Ma'nosini aniqlash (Masalan: "Ma'nosi: Asoslamoq, tayanmoq")
       const meaningMatch = line.match(/^(?:•\s*)?Ma'nosi\s*:\s*(.+)$/i);
       if (meaningMatch && currentWord) {
         const meaning = meaningMatch[1].trim();
